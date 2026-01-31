@@ -171,32 +171,40 @@ def summarize_trades(trades: pd.DataFrame) -> dict:
 # -----------------------------
 # Data loading helpers
 # -----------------------------
-def normalize_df(df: pd.DataFrame) -> pd.DataFrame:
-    # 尝试大小写/常见别名
-    cols = {c.lower(): c for c in df.columns}
-    def pick(name, aliases):
-        for a in [name] + aliases:
-            if a in cols:
-                return cols[a]
-        return None
+def normalize_df(df):
+    """
+    自动把常见A股字段名 → 统一成:
+    date, open, high, low, close, volume
+    """
+    col_map = {}
 
-    mapping = {
-        "date": pick("date", ["datetime", "time", "交易日期"]),
-        "open": pick("open", ["o", "开盘", "open_price"]),
-        "high": pick("high", ["h", "最高", "high_price"]),
-        "low": pick("low", ["l", "最低", "low_price"]),
-        "close": pick("close", ["c", "收盘", "close_price"]),
-        "volume": pick("volume", ["vol", "v", "成交量", "volume_shares"]),
-    }
-    missing = [k for k, v in mapping.items() if v is None]
+    for c in df.columns:
+        cl = c.lower()
+        if cl in ["date", "trade_date", "datetime", "交易日期"]:
+            col_map[c] = "date"
+        elif cl in ["open", "open_price", "开盘", "开盘价"]:
+            col_map[c] = "open"
+        elif cl in ["high", "high_price", "最高", "最高价"]:
+            col_map[c] = "high"
+        elif cl in ["low", "low_price", "最低", "最低价"]:
+            col_map[c] = "low"
+        elif cl in ["close", "close_price", "收盘", "收盘价"]:
+            col_map[c] = "close"
+        elif cl in ["volume", "vol", "成交量"]:
+            col_map[c] = "volume"
+
+    df = df.rename(columns=col_map)
+
+    required = ["date", "open", "high", "low", "close", "volume"]
+    missing = [c for c in required if c not in df.columns]
     if missing:
-        raise ValueError(f"缺少必要列: {missing}。需要至少包含: {REQUIRED_COLS}")
+        raise ValueError(f"缺少必要列: {missing}")
 
-    df = df.rename(columns={mapping[k]: k for k in mapping})
-    df = df[REQUIRED_COLS].copy()
+    df = df[required].copy()
     df["date"] = pd.to_datetime(df["date"])
-    df = df.sort_values("date").dropna(subset=["date"])
+    df = df.sort_values("date")
     return df
+
 
 
 def read_csv_bytes(b: bytes) -> pd.DataFrame:
@@ -372,3 +380,4 @@ if run:
             mime="text/csv",
             use_container_width=True
         )
+
